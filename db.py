@@ -127,7 +127,6 @@ def create_solution(file: str, comments: list, scan_id: str):
             scan_id=scan_id,
             timestamp=datetime.datetime.now()
         )
-
         session.add(solution)
         session.commit()
     except Exception as e:

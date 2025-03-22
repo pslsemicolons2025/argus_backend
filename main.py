@@ -5,6 +5,7 @@ import db
 import base64
 import toml
 import re
+from fastapi import status
 from fastapi import FastAPI, File, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -122,41 +123,61 @@ async def addScan(scan_details: RecordScanDetails):
 
 @app.get("/v1/latestScan/")
 async def getLatestScan(project_id: str):
-    latest_scan = db.fetch_latest_scan(project_id=project_id)
-    output_json = json.loads(latest_scan)
-    return output_json
+    if project_id:
+        latest_scan = db.fetch_latest_scan(project_id=project_id)
+        output_json = json.loads(latest_scan)
+        return output_json
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Required parameter missing project_id")
+
 
 
 @app.get("/v1/getScansByProjectId/")
 async def getLatestScanByProjectId(project_id: str):
-    latest_scan = db.fetch_scans_by_project_id(project_id=project_id)
-    output_json = json.loads(latest_scan)
-    return output_json
+    if project_id:
+        latest_scan = db.fetch_scans_by_project_id(project_id=project_id)
+        output_json = json.loads(latest_scan)
+        return output_json
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Required parameter missing project_id")
+
 
 @app.get("/v1/latestScanByScanId/")
 async def getLatestScanByScanId(scan_id: str):
-    latest_scan = db.fetch_scans_by_scan_id(scan_id=scan_id)
-    output_json = json.loads(latest_scan)
-    return output_json
+    if scan_id:
+        latest_scan = db.fetch_scans_by_scan_id(scan_id=scan_id)
+        output_json = json.loads(latest_scan)
+        return output_json
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Required parameter missing scan_id")
+
+
 
 @app.get("/v1/getllmfix/")
 async def getllmfix(scan_id: str):
-    llmFix(scan_id)
-    return
+    if scan_id:
+        llmFix(scan_id)
+    else:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Required parameter missing scan_id")
+
 
 def llmFix(scan_id: str):
-    pom = db.fetch_pom(scan_id=scan_id)
-    decoded_pom = b64decode(pom)
-    result_pom = ""
-    comments = []
-    result = call_huggingface_model(decoded_pom)
-    if result.get("success"):
-        result_pom = result.get("pom")
+    if scan_id:
+        pom = db.fetch_pom(scan_id=scan_id)
+        decoded_pom = b64decode(pom)
+        result_pom = ""
+        comments = []
+        result = call_huggingface_model(decoded_pom)
+        if result.get("success"):
+            result_pom = result.get("pom")
+        else:
+            comments.append("Unable to get Fixed POM.XML please try /v1/getllmfix/ API to get fixed pom.xml")
+        encoded_pom = b64encode(result_pom)
+        db.create_solution(file=encoded_pom,comments=comments, scan_id=scan_id)
+        return result
     else:
-        comments.append("Unable to get Fixed POM.XML please try /v1/getllmfix/ API to get fixed pom.xml")
-    encoded_pom = b64encode(result_pom)
-    db.create_solution(file=encoded_pom,comments=comments, scan_id=scan_id)
-    return result
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Required parameter missing scan_id")
+
 
 @app.get("/v1/allProjects/")
 async def allProjects():
