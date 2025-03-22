@@ -61,8 +61,6 @@ def call_huggingface_model(pom_xml):
         if type(r) == dict and r.get("error"):
             return { "pom": r.get("error"), "success": False }
         else:
-            logging.debug("response",r)
-            logging.info("response",response)
             gt = r[0].get("generated_text")
             l = gt.split("```")
             poms = []
@@ -76,7 +74,7 @@ def call_huggingface_model(pom_xml):
             else:
                 match = re.search(pattern, poms[0])
                 final_pom = match.group(1)
-            logging.info("final_pom", final_pom)
+            logging.debug(final_pom)
             return { "pom": final_pom, "success": True }
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"Error with Hugging Face API: {str(e)}")
@@ -93,7 +91,7 @@ async def addScan(scan_details: RecordScanDetails):
     pom_xml = scan_details.pom_xml
     tags = scan_details.tags
     if db.project_exist(project_id):
-        logging.info("Updating Project Scans for project", project_id)
+        logging.debug(project_id)
         if not db.scan_exist(scan_id):
             db.create_scan(project_id=project_id, scan_id=scan_id, related_links=scan_link,tags=tags, pom=pom_xml)
         for cve in cves:
@@ -103,11 +101,11 @@ async def addScan(scan_details: RecordScanDetails):
             vulnerability = cve.get("vulnerability") if cve.get("vulnerability") else []
             db.create_cve(description=description, vulnerability=vulnerability,scan_id=scan_id, category=category,cve_id=cve.get("cve_id"), severity=cve.get("severity"), solutions=solutions )
     else:
-        logging.info("Creating new Project ")
+        logging.debug("Creating new Project")
         db.create_project(githublink=git_link, project_id=project_id, name=project_name)
         if db.project_exist(project_id):
-            logging.info("Project created Successfully")
-            logging.info("Addign scan details")
+            logging.debug("Project created Successfully")
+            logging.debug("Addign scan details")
             if not db.scan_exist(scan_id):
                 db.create_scan(project_id=project_id, scan_id=scan_id, related_links=scan_link,tags=tags, pom=pom_xml)
             for cve in cves:
