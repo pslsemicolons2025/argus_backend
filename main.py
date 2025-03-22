@@ -58,7 +58,7 @@ def call_huggingface_model(pom_xml):
         logging.debug("calling llama with data", data)
         response = requests.post(api, headers=HEADERS, json=data)
         r = response.json()
-        logging.debug(r)
+        logging.debug("llama response", r)
         if type(r) == dict and r.get("error"):
             return { "pom": r.get("error"), "success": False }
         else:
@@ -75,7 +75,7 @@ def call_huggingface_model(pom_xml):
             else:
                 match = re.search(pattern, poms[0])
                 final_pom = match.group(1)
-            logging.debug(final_pom)
+            logging.debug("final pom",final_pom)
             return { "pom": final_pom, "success": True }
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"Error with Hugging Face API: {str(e)}")
@@ -115,7 +115,6 @@ async def addScan(scan_details: RecordScanDetails):
                 description = cve.get("description") if cve.get("description") else []
                 vulnerability = cve.get("vulnerability") if cve.get("vulnerability") else []
                 db.create_cve(description=description, vulnerability=vulnerability,scan_id=scan_id, category=category,cve_id=cve.get("cve_id"), severity=cve.get("severity"), solutions=solutions )
-        llmFix(scan_id=scan_id)
     project_output = json.loads(db.fetch_project_by_id(project_id))
     return project_output
 
