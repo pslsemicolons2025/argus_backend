@@ -36,39 +36,43 @@ logging.basicConfig(filename='app.log', level=logging.ERROR)
 
 # Function to call Hugging Face LLM model
 def call_huggingface_model(pom_xml):
-    prompt = f"Update the pom.xml file below by fixing the vulnerabilities associated it. The output should be only pom.xml: {', '.join(cve_ids)}, update the pom.xml file below by fixing the vulnerabilities associated with these CVEs. The output should be only pom.xml :\n\n{pom_xml}"
+    prompt = f"update the pom.xml file below by fixing the vulnerabilities associated it. The output should be only pom.xml:\n\n{pom_xml}"
     data = {
         "inputs": prompt,
-        "parameters": {"return_full_text": False}  # Important to disable prompt echo
+        # "parameters": {"return_full_text": False}  # Important to disable prompt echo
     }
-
-    response = requests.post(HUGGINGFACE_API_URL, headers=HEADERS, json=data)
-    r = response.json()
-    gt = r[0].get("generated_text")
-    print("gt", gt)
-    l = gt.split("```")
-    poms = []
-    for i in l:
-        if "</project>" in i:
-            poms.append(i)
-    final_pom =""
-    if len(poms) >1:
-        final_pom = poms[-1]
-    else:
-        final_pom = poms[0]
-
-    print(final_pom)
+    print("calling llama with data", data)
     try:
-        print("data:", data)
+        logging.debug("calling llama with data", data)
         response = requests.post(HUGGINGFACE_API_URL, headers=HEADERS, json=data)
-        response.raise_for_status()  # Raise an exception if the request failed
-        logging.info("response",response)
-        return response.json()  # Return the JSON response from the model
+        r = response.json()
+        print("llama response:", r)
+
+        if type(r) == dict and r.get("error"):
+            return { "pom": r.get("error"), "success": False }
+        else:
+            print("response",r)
+            logging.info("response",response)
+            gt = r[0].get("generated_text")
+            print("gt", gt)
+            l = gt.split("```")
+            poms = []
+            for i in l:
+                if "</project>" in i:
+                    poms.append(i)
+            final_pom =""
+            if len(poms) >1:
+                final_pom = poms[-1]
+            else:
+                final_pom = poms[0]
+
+            logging.info("final_pom", final_pom)
+            return { "pom": final_pom, "success": True }
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=500, detail=f"Error with Hugging Face API: {str(e)}")
 
 # API endpoint to handle the POST request
-@app.post("/v1/addscan/")
+@app.post("/v1/addScan/")
 async def update_pom(scan_details: RecordScanDetails):
     project_name = scan_details.project_name
     project_id = scan_details.project_id
@@ -107,7 +111,7 @@ async def update_pom(scan_details: RecordScanDetails):
 
 
 
-@app.get("/latestscan/")
+@app.get("/v1/latestScan/")
 async def getLatestScan(project_id: str):
     latest_scan = db.fetch_latest_scan(project_id=project_id)
     print(latest_scan)
@@ -116,14 +120,33 @@ async def getLatestScan(project_id: str):
 
 
 
-@app.get("/getNewGenAISolution/")
+@app.get("/v1/getNewGenAISolution/")
 async def getLatestScan(scan_id: str):
-    pom = db.fetch_pom_cve(scan_id=scan_id)
+    pom = db.fetch_pom(scan_id=scan_id)
     decoded_pom = b64decode(pom)
-    print("pom", decoded_pom)
-
+    result_pom = ""
+    comments = []
+    res = call_huggingface_model(decoded_pom)
+    if res.get("success"):
+        result_pom = res.get("pom")
+    else:
+        comments.append(res.get("pom"))
+    encoded_pom = b64encode(result_pom)
+    db.create_solution(file=encoded_pom,comments=[], scan_id=scan_id)
     return
 
+
+@app.get("/v1/allProjects/")
+async def getLatestScan(scan_id: str):
+    pom = db.fetch_pom(scan_id=scan_id)
+    decoded_pom = b64decode(pom)
+    print("pom", decoded_pom)
+    result_pom = ""
+    result_pom = call_huggingface_model(decoded_pom)
+    encoded_pom = b64encode(result_pom)
+    db.create_solution(file=encoded_pom,comments=[], scan_id=scan_id)
+    solution = db.fetch_solution_by_scanid(scan_id)
+    return solution
 
 
 
