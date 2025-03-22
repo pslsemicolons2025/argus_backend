@@ -1,3 +1,10 @@
+Steps to run :
+
+```
+pip install -r requirements.txt
+pip install "fastapi[standard]"
+fastapi dev main.py
+```
 
 ###### POST /addScan
 > github action stage make this call with backend
