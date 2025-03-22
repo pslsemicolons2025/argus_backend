@@ -156,9 +156,9 @@ def llmFix(scan_id: str):
     if result.get("success"):
         result_pom = result.get("pom")
     else:
-        comments.append(result.get("pom"))
+        comments.append("Unable to get Fixed POM.XML please try /v1/getllmfix/ API")
     encoded_pom = b64encode(result_pom)
-    db.create_solution(file=encoded_pom,comments=[], scan_id=scan_id)
+    db.create_solution(file=encoded_pom,comments=comments, scan_id=scan_id)
     return result
 
 
