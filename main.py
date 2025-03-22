@@ -1,16 +1,20 @@
-from fastapi import FastAPI, File, UploadFile, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 import json
 import requests
-from xml.etree import ElementTree as ET
-import os
 import logging
 import db
 import base64
-import tom
+import toml
+import re
+from fastapi import FastAPI, File, UploadFile, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 app = FastAPI()
+ctoml = toml.load("config.toml")
+config = ctoml.get("configuration",{})
+api = config.get("llm_api")
+apikey = config.get("apikey")
+pattern = r"(<project[\s\S]*?</project>)"
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,11 +41,10 @@ class RecordScanDetails(BaseModel):
     pom_xml: str
     tags: list[str]
 
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/meta-llama/Llama-3.2-3B-Instruct"
 
-HEADERS = {'Authorization': f"Bearer {os.getenv('HUGGINGFACE_API_KEY')}"}
+HEADERS = {'Authorization': f"Bearer {apikey}"}
 
-logging.basicConfig(filename='app.log', level=logging.ERROR)
+logging.basicConfig(filename='app.log', level=logging.DEBUG)
 
 # Function to call Hugging Face LLM model
 def call_huggingface_model(pom_xml):
@@ -50,20 +53,17 @@ def call_huggingface_model(pom_xml):
         "inputs": prompt,
         "parameters": {"return_full_text": False}  # Important to disable prompt echo
     }
-    print("calling llama with data", data)
     try:
         logging.debug("calling llama with data", data)
-        response = requests.post(HUGGINGFACE_API_URL, headers=HEADERS, json=data)
+        response = requests.post(api, headers=HEADERS, json=data)
         r = response.json()
-        print("llama response:", r)
-
+        logging.debug(r)
         if type(r) == dict and r.get("error"):
             return { "pom": r.get("error"), "success": False }
         else:
-            print("response",r)
+            logging.debug("response",r)
             logging.info("response",response)
             gt = r[0].get("generated_text")
-            print("gt", gt)
             l = gt.split("```")
             poms = []
             for i in l:
@@ -71,10 +71,11 @@ def call_huggingface_model(pom_xml):
                     poms.append(i)
             final_pom =""
             if len(poms) >1:
-                final_pom = poms[-1]
+                match = re.search(pattern, poms[-1])
+                final_pom = match.group(1)
             else:
-                final_pom = poms[0]
-
+                match = re.search(pattern, poms[0])
+                final_pom = match.group(1)
             logging.info("final_pom", final_pom)
             return { "pom": final_pom, "success": True }
     except requests.exceptions.RequestException as e:
@@ -124,7 +125,6 @@ async def addScan(scan_details: RecordScanDetails):
 @app.get("/v1/latestScan/")
 async def getLatestScan(project_id: str):
     latest_scan = db.fetch_latest_scan(project_id=project_id)
-    print(latest_scan)
     output_json = json.loads(latest_scan)
     return output_json
 
@@ -132,14 +132,12 @@ async def getLatestScan(project_id: str):
 @app.get("/v1/getScansByProjectId/")
 async def getLatestScanByProjectId(project_id: str):
     latest_scan = db.fetch_scans_by_project_id(project_id=project_id)
-    print(latest_scan)
     output_json = json.loads(latest_scan)
     return output_json
 
 @app.get("/v1/latestScanByScanId/")
 async def getLatestScanByScanId(scan_id: str):
     latest_scan = db.fetch_scans_by_scan_id(scan_id=scan_id)
-    print(latest_scan)
     output_json = json.loads(latest_scan)
     return output_json
 
@@ -162,21 +160,17 @@ def llmFix(scan_id: str):
     db.create_solution(file=encoded_pom,comments=comments, scan_id=scan_id)
     return result
 
-
 @app.get("/v1/allProjects/")
 async def allProjects():
     projects = db.fetch_projects()
     output_json = json.loads(projects)
     return output_json
 
-
-
 def b64encode(s):
     base64_bytes = s.encode("ascii")
     base64_bytes = base64.b64encode(base64_bytes)
     encoded_string = base64_bytes.decode("ascii")
     return encoded_string
-
 
 def b64decode(s):
     base64_bytes = s.encode("ascii")
