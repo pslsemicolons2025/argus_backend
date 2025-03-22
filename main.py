@@ -8,6 +8,7 @@ import os
 import logging
 import db
 import base64
+import tom
 
 app = FastAPI()
 
@@ -128,7 +129,7 @@ async def getLatestScan(project_id: str):
     return output_json
 
 
-@app.get("/v1/latestScanByProjectId/")
+@app.get("/v1/getScansByProjectId/")
 async def getLatestScanByProjectId(project_id: str):
     latest_scan = db.fetch_scans_by_project_id(project_id=project_id)
     print(latest_scan)
