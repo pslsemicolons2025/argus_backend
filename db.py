@@ -83,12 +83,12 @@ def fetch_projects():
     if projects:
         for project in projects:
             project_data = {
-                "id": project.project_id,
+                "projectId": project.project_id,
                 "name": project.name,
                 "githublink": project.githublink,
                 "scans": []
             }
-
+            project_data["scan_count"] = len(project.scans)
             for scan in project.scans:
                 scan_data = {
                     "id": scan.scan_id,
@@ -96,7 +96,7 @@ def fetch_projects():
                     "tags": scan.tags.split(","),
                     "cve": []
                 }
-
+                project_data["cve_count"] = len(scan.cves)
                 for cve in scan.cves:
                     cve_data = {
                         "cvd_id": cve.cve_id,
@@ -107,13 +107,6 @@ def fetch_projects():
                         "vulnerability": cve.vulnerability
                     }
                     scan_data["cve"].append(cve_data)
-
-                if scan.solution:
-                    solution_data = {
-                        "file": scan.solution.file,
-                        "comments": scan.solution.comments
-                    }
-                    scan_data["solution"] = solution_data
 
                 project_data["scans"].append(scan_data)
             project_json.append(project_data)
@@ -273,6 +266,27 @@ def fetch_scans_by_project_id(project_id):
             scan_data.append(scan_details)
         session.close()
         return json.dumps(scan_data, indent=4) if scan_data else "No scans found"
+    else:
+        session.close()
+        return "No project found"
+
+def fetch_scans_by_scan_id(scan_id):
+    session = Session()
+    scan = session.query(Scan).filter(Scan.scan_id == scan_id).first()
+
+    if scan:
+        scan_details = {
+            "scan_id": scan.scan_id,
+            "related_links": scan.related_links.split(","),
+            "tags": scan.tags.split(","),
+            "cves": [{"cve_id": cve.cve_id, "severity": cve.severity, "vulnerability": cve.vulnerability, "description": cve.description, "category":cve.category, "solutions":cve.solutions.split("|")} for cve in scan.cves] if scan.cves else [],
+            "solution": {
+                "file": scan.solution.file if scan.solution else None,
+                "comments": scan.solution.comments.split("|") if scan.solution else []
+            } if scan.solution else None
+        }
+
+        return json.dumps(scan_details, indent=4) if scan_details else "No scans found"
     else:
         session.close()
         return "No project found"

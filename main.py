@@ -81,7 +81,7 @@ def call_huggingface_model(pom_xml):
 
 # API endpoint to handle the POST request
 @app.post("/v1/addScan/")
-async def update_pom(scan_details: RecordScanDetails):
+async def addScan(scan_details: RecordScanDetails):
     project_name = scan_details.project_name
     project_id = scan_details.project_id
     scan_id = scan_details.scan_id
@@ -114,8 +114,9 @@ async def update_pom(scan_details: RecordScanDetails):
                 description = cve.get("description") if cve.get("description") else []
                 vulnerability = cve.get("vulnerability") if cve.get("vulnerability") else []
                 db.create_cve(description=description, vulnerability=vulnerability,scan_id=scan_id, category=category,cve_id=cve.get("cve_id"), severity=cve.get("severity"), solutions=solutions )
-    project_ = json.loads(db.fetch_project_by_id(project_id))
-    return project_
+        llmFix(scan_id=scan_id)
+    project_output = json.loads(db.fetch_project_by_id(project_id))
+    return project_output
 
 
 
@@ -127,34 +128,45 @@ async def getLatestScan(project_id: str):
     return output_json
 
 
+@app.get("/v1/latestScanByProjectId/")
+async def getLatestScanByProjectId(project_id: str):
+    latest_scan = db.fetch_scans_by_project_id(project_id=project_id)
+    print(latest_scan)
+    output_json = json.loads(latest_scan)
+    return output_json
 
-@app.get("/v1/getNewGenAISolution/")
-async def getLatestScan(scan_id: str):
+@app.get("/v1/latestScanByScanId/")
+async def getLatestScanByScanId(scan_id: str):
+    latest_scan = db.fetch_scans_by_scan_id(scan_id=scan_id)
+    print(latest_scan)
+    output_json = json.loads(latest_scan)
+    return output_json
+
+@app.get("/v1/getllmfix/")
+async def getllmfix(scan_id: str):
+    llmFix(scan_id)
+    return
+
+def llmFix(scan_id: str):
     pom = db.fetch_pom(scan_id=scan_id)
     decoded_pom = b64decode(pom)
     result_pom = ""
     comments = []
-    res = call_huggingface_model(decoded_pom)
-    if res.get("success"):
-        result_pom = res.get("pom")
+    result = call_huggingface_model(decoded_pom)
+    if result.get("success"):
+        result_pom = result.get("pom")
     else:
-        comments.append(res.get("pom"))
+        comments.append(result.get("pom"))
     encoded_pom = b64encode(result_pom)
     db.create_solution(file=encoded_pom,comments=[], scan_id=scan_id)
-    return
+    return result
 
 
 @app.get("/v1/allProjects/")
-async def getLatestScan(scan_id: str):
-    pom = db.fetch_pom(scan_id=scan_id)
-    decoded_pom = b64decode(pom)
-    print("pom", decoded_pom)
-    result_pom = ""
-    result_pom = call_huggingface_model(decoded_pom)
-    encoded_pom = b64encode(result_pom)
-    db.create_solution(file=encoded_pom,comments=[], scan_id=scan_id)
-    solution = db.fetch_solution_by_scanid(scan_id)
-    return solution
+async def allProjects():
+    projects = db.fetch_projects()
+    output_json = json.loads(projects)
+    return output_json
 
 
 
