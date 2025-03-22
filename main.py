@@ -47,7 +47,7 @@ def call_huggingface_model(pom_xml):
     prompt = f"update the pom.xml file below by fixing the vulnerabilities associated it. The output should be only pom.xml:\n\n{pom_xml}"
     data = {
         "inputs": prompt,
-        # "parameters": {"return_full_text": False}  # Important to disable prompt echo
+        "parameters": {"return_full_text": False}  # Important to disable prompt echo
     }
     print("calling llama with data", data)
     try:
@@ -156,7 +156,7 @@ def llmFix(scan_id: str):
     if result.get("success"):
         result_pom = result.get("pom")
     else:
-        comments.append("Unable to get Fixed POM.XML please try /v1/getllmfix/ API")
+        comments.append("Unable to get Fixed POM.XML please try /v1/getllmfix/ API to get fixed pom.xml")
     encoded_pom = b64encode(result_pom)
     db.create_solution(file=encoded_pom,comments=comments, scan_id=scan_id)
     return result
